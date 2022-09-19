@@ -1,9 +1,4 @@
-import typing
-from typing import (
-    Union,
-    Optional,
-    List,
-)
+from typing import *
 import asyncio
 import logging
 from datetime import datetime, timedelta
@@ -113,6 +108,7 @@ async def on_guild_leave(event: hikari.GuildLeaveEvent):
     await table.execute(f"DELETE FROM {table.name} WHERE guild_id = $1", event.guild_id)
     log.info(f"Leaft guild with id {event.guild_id}")
 
+
 @plugin.listener(hikari.InteractionCreateEvent)
 async def on_join_interaction(event: hikari.InteractionCreateEvent):
     try:
@@ -147,41 +143,67 @@ async def on_join_interaction(event: hikari.InteractionCreateEvent):
 
 @plugin.listener(hikari.GuildJoinEvent)
 async def on_guild_join(event: hikari.GuildJoinEvent):
-    custom_id = {
-        "type": "guild_join_menu",
-        "guild_id": str(event.guild_id),
-        "id": str(bot.id_creator.create_id())
-    }
     not_nsfw_channels = []
-    component = (
-        ActionRowBuilder()
-        .add_select_menu(json.dumps(custom_id, indent=None))
-    )
     channels = event.guild.get_channels()
     for channel_id, channel in channels.items():
         if not channel.is_nsfw and isinstance(channel, hikari.TextableChannel) and not isinstance(channel, hikari.GuildVoiceChannel):
             not_nsfw_channels.append(channel)
         else:
             continue
-        component = component.add_option(str(channel.name), str(channel.id)).add_to_menu()
-    component = component.add_to_container()
     not_nsfw_channels.sort(key=lambda ch: ch.created_at)
     for channel in not_nsfw_channels:
         # try to send the message, until the bot was allowed to send a message into a channel
         try:
-            message = await bot.rest.create_message(
-                channel, 
-                content=(
-                    "Select the channel where I should send the daily Tears of the Kingdom reminder message.\n"
-                    "If you need to create a channel first, then kick me, create the channel, and reinvite me.\n"
-                    "Keep in mind, that I can just show the first 24 channels which are not nsfw"
-                ),
-                component=component
-            )
+            message = await bot.rest.create_message(**create_settings_message_kwargs(event.guild, channel.id)) 
         except Exception:
             log.error(traceback.format_exc())
         if message:
             break
+
+@plugin.command
+@lightbulb.command("set", "change the channel, where to send the message")
+@lightbulb.implements(lightbulb.commands.SlashCommand)
+async def set_channel(ctx: lightbulb.context.Context):
+    try:
+        guild = ctx.get_guild()  
+        if not guild:
+            log.error(f"guild is not in cache. Change method to rest")
+            return
+        kwargs = create_settings_message_kwargs(guild, ctx.channel_id)
+        del kwargs["channel"]
+        await ctx.respond(**kwargs)
+    except Exception:
+        log.error(traceback.format_exc())
+
+
+def create_settings_message_kwargs(guild: hikari.Guild, channel_id: int) -> Dict[str, Any]:
+    custom_id = {
+        "type": "guild_join_menu",
+        "guild_id": str(guild.id),
+        "id": str(bot.id_creator.create_id())
+    }
+    kwargs: Dict[str, Any] = {}
+    kwargs["channel"] = channel_id
+    kwargs["content"] = (
+        "Select the channel where I should send the daily Tears of the Kingdom reminder message.\n"
+        "If you need to create the channel or give me roles, that I see that specific channel "
+        "then you can call this menu at anytime again with `/set` (this will update the channels I see).\n"
+        "Keep in mind, that I can just show the first 24 channels which are not nsfw\n"
+    )
+    component = (
+        ActionRowBuilder()
+        .add_select_menu(json.dumps(custom_id, indent=None))
+    )
+    channels = guild.get_channels()
+    for ch_id, channel in channels.items():
+        if not channel.is_nsfw and isinstance(channel, hikari.TextableChannel) and not isinstance(channel, hikari.GuildVoiceChannel):
+            pass
+        else:
+            continue
+        component = component.add_option(str(channel.name), str(channel.id)).add_to_menu()
+    component = component.add_to_container()
+    kwargs["component"] = component
+    return kwargs
         
 
 
