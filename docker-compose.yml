@@ -1,0 +1,18 @@
+version: "3.8"
+services:
+  db:
+    container_name: totk-postgresql
+    image: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: totk
+      POSTGRES_PASSWORD: secr33t
+      POSTGRES_DB: totk_db
+    volumes:
+      - ./../postgres-data-totk:/var/lib/postgresql/data
+  app:
+    container_name: TotK-bot
+    depends_on:
+      - db
+    build: .
+    restart: always
