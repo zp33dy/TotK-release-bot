@@ -32,6 +32,9 @@ SYNCING = False
 
 @plugin.listener(hikari.ShardReadyEvent)
 async def load_tasks(event: hikari.ShardReadyEvent):
+    """
+    Loads task to update message once per day
+    """
     global SYNCING
     if SYNCING:
         return
@@ -40,7 +43,7 @@ async def load_tasks(event: hikari.ShardReadyEvent):
     await asyncio.sleep(3)
 
     now = datetime.now()
-    wait_to = datetime(now.year, now.month, now.day, 18)
+    wait_to = datetime(now.year, now.month, now.day, 0, 5)
     if wait_to < now:
         wait_to += timedelta(days=1)
     secs = int((wait_to - now).total_seconds())
@@ -52,7 +55,11 @@ async def load_tasks(event: hikari.ShardReadyEvent):
     logging.getLogger('apscheduler.executors.default').setLevel(logging.WARNING)
 
 
+
 async def update_messages():
+    """
+    Updates messages from all guilds
+    """
     try:
         await send_messages()
     except Exception:
@@ -61,7 +68,11 @@ async def update_messages():
 
 async def _send_message(guild_id: int, channel_id: int, message_id: int | None):
     """
+    Creates embed, get kwargs for setup message and creates the message
+    => updates the message_id in the db
+
     Description:
+    ------------
     - deletes the given message with id <message_id>
     - creates a new message
     - updates the database
@@ -88,6 +99,7 @@ async def _send_message(guild_id: int, channel_id: int, message_id: int | None):
     await table.update(set={"message_id": message.id}, where={"guild_id": guild_id})
 
 
+
 async def send_messages():
     """
     fetches DB entries, and sends for every single one the message
@@ -102,15 +114,23 @@ async def send_messages():
         ))
 
 
+
 @plugin.listener(hikari.GuildLeaveEvent)
 async def on_guild_leave(event: hikari.GuildLeaveEvent):
+    """
+    remove a guild from db when the bot gets kicked
+    """
     table = Table("guilds")
     await table.execute(f"DELETE FROM {table.name} WHERE guild_id = $1", event.guild_id)
     log.info(f"Leaft guild with id {event.guild_id}")
 
 
+
 @plugin.listener(hikari.InteractionCreateEvent)
 async def on_join_interaction(event: hikari.InteractionCreateEvent):
+    """
+    manages the interactions of the startup message
+    """
     try:
         if not isinstance(event.interaction, hikari.ComponentInteraction):
             return
@@ -143,10 +163,14 @@ async def on_join_interaction(event: hikari.InteractionCreateEvent):
 
 @plugin.listener(hikari.GuildJoinEvent)
 async def on_guild_join(event: hikari.GuildJoinEvent):
+    """
+    send setup message when bot joins guild
+    """
     not_nsfw_channels = []
     channels = event.guild.get_channels()
     for channel_id, channel in channels.items():
-        if not channel.is_nsfw and isinstance(channel, hikari.TextableChannel) and not isinstance(channel, hikari.GuildVoiceChannel):
+        # removed nsfw check (not channel.is_nsfw)
+        if isinstance(channel, hikari.TextableChannel) and not isinstance(channel, hikari.GuildVoiceChannel):
             not_nsfw_channels.append(channel)
         else:
             continue
@@ -160,10 +184,13 @@ async def on_guild_join(event: hikari.GuildJoinEvent):
         if message:
             break
 
+
+
 @plugin.command
 @lightbulb.command("set", "change the channel, where to send the message")
 @lightbulb.implements(lightbulb.commands.SlashCommand)
 async def set_channel(ctx: lightbulb.context.Context):
+    """call setup message manually per slash command"""
     try:
         guild = ctx.get_guild()  
         if not guild:
@@ -176,7 +203,11 @@ async def set_channel(ctx: lightbulb.context.Context):
         log.error(traceback.format_exc())
 
 
+
 def create_settings_message_kwargs(guild: hikari.Guild, channel_id: int) -> Dict[str, Any]:
+    """
+    creates the kwargs for the startup message
+    """
     custom_id = {
         "type": "guild_join_menu",
         "guild_id": str(guild.id),
@@ -188,7 +219,7 @@ def create_settings_message_kwargs(guild: hikari.Guild, channel_id: int) -> Dict
         "Select the channel where I should send the daily Tears of the Kingdom reminder message.\n"
         "If you need to create the channel or give me roles, that I see that specific channel "
         "then you can call this menu at anytime again with `/set` (this will update the channels I see).\n"
-        "Keep in mind, that I can just show the first 24 channels which are not nsfw\n"
+        "Keep in mind, that I can just show the first 24 channels of your guild.\n"
     )
     component = (
         ActionRowBuilder()
