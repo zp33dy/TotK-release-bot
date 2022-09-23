@@ -1,1 +1,1 @@
-from .inu import ext, utils, data, core
+from .src import ext, utils, data, core
