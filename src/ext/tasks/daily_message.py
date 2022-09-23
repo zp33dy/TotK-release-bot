@@ -227,7 +227,8 @@ def create_settings_message_kwargs(guild: hikari.Guild, channel_id: int) -> Dict
     )
     channels = guild.get_channels()
     for ch_id, channel in channels.items():
-        if not channel.is_nsfw and isinstance(channel, hikari.TextableChannel) and not isinstance(channel, hikari.GuildVoiceChannel):
+        # not channel.is_nsfw 
+        if isinstance(channel, hikari.TextableChannel) and not isinstance(channel, hikari.GuildVoiceChannel):
             pass
         else:
             continue
