@@ -156,6 +156,11 @@ async def on_join_interaction(event: hikari.InteractionCreateEvent):
         guild = await bot.rest.fetch_guild(guild_id)
         log.info(f"Added guild [{guild.id}] '{guild.name}' with channel_id {channel_id} to the DB")
         await _send_message(guild_id, channel_id, None)
+    except hikari.ForbiddenError:
+        await i.create_initial_response(
+            hikari.ResponseType.MESSAGE_CREATE, 
+            "I can't send messages there. - lacking on permissions. Make sure that I can send messages there"
+        )
     except Exception:
         log.critical(traceback.format_exc())
 
