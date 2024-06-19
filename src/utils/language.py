@@ -1,4 +1,5 @@
 import datetime
+from datetime import timedelta
 from typing import *
 from enum import Enum
 import yaml
@@ -112,22 +113,36 @@ class Human():
     def plural_(
         word_s: T_str_list,
         relation: Union[int, bool, float],
-        with_number: bool = False,
+        with_number: bool = True,
+        plural_s: str | List[str] | None = None,
     ) -> T_str_list:
         """ 
-        returns
+        returns:
+        --------
             - (str) a word/s plural.
-        word_s: the word or words with will be converted relating to <relation>
-        relation: bool or int -> bool=True == plural; int > 1 = plural,
-        with_number (bool) wether or not to put relation before the word when it is int or float
+
+        Args:
+        -----
+        word_s: str | List[str]
+            the word or words with will be converted relating to <relation>
+        relation: bool or int
+            bool=True == plural; int <> 1 = plural,
+        with_number : bool
+            wether or not to put relation before the word when it is int or float
+        plural_s : str | None
+            sometimes the automatic plural is wrong. For this case pass it with this param in
         """
         if with_number:
             if not isinstance(relation, (int, float)):
                 with_number = False
-        plural = False
+        plural: bool = False
+        # check if word will be plural
         if isinstance(relation, float) and relation != 1:
             plural = True
-        
+        # plural words and words need both to be either str or list
+        if plural_s is not None:
+            assert(type(word_s) == type(plural_s))
+        # check if word will be plural
         if isinstance(relation, int) and relation > 1 or relation == 0:
             plural = True
         elif isinstance(relation, bool):
@@ -147,7 +162,10 @@ class Human():
         
         def mk_plural(word_s: list) -> List[str]:
             pl_word_s = []
-            for w in word_s:
+            for w, w_plural in zip(word_s, plural_s or (None for _ in range(len(word_s)))):
+                if w_plural is not None:
+                    pl_word_s.append(w_plural)
+                    continue
                 if Multiple.endswith_(w, ['s', 'ss', 'sh', 'ch', 'x' 'z']):
                     pl_word_s.append(f'{w}es')
                 elif Multiple.endswith_(w, ['f', 'fe']):
@@ -173,12 +191,15 @@ class Human():
             return pl_word_s
 
         if isinstance(word_s, list):
+            
             words = mk_plural(word_s)
             if with_number:
                 return [f"{relation} {w}" for w in word_s]
             else:
                 return words
         else:
+            # if word_s is str, than plural_s is too
+            plural_s = [plural_s]  #type: ignore
             entry = mk_plural([word_s])[0]
             if with_number:
                 return f"{relation} {entry}"
@@ -221,6 +242,10 @@ class Human():
 
         r: List[Any] = []
         for i, c in enumerate(str(dollars)[::-1]):
+            try:
+                int(c)
+            except:
+                i -= 1
             if i and (not (i % 3)):
                 r.insert(0, SEPERATOR)
             r.insert(0, c)
@@ -237,23 +262,41 @@ class Human():
         return out
 
     @staticmethod
-    def short_text(text: Optional[str], max_lengh: int) -> str:
+    def short_text(text: Optional[str], max_length: int, suffix: str = " [...]", intelligent: bool = True) -> str:
         """
+        Truncates the given text to the specified maximum length and appends a suffix if necessary.
+
+        Parameters:
+        -----------
+        text : Optional[str]
+            The text to be truncated.
+        max_length : int
+            The maximum length of the truncated text.
+        suffix : str, optional
+            The suffix to be appended if the text is truncated, by default "..".
+        intelligent : bool, optional
+            If True, the truncation will be done intelligently by considering word boundaries, 
+            otherwise it will be a simple character-based truncation, by default True.
+
         Returns:
         --------
-            - (str) the text until max_lengh with ... or complete text
+        str
+            The truncated text.
+
         """
         text = str(text)
-        if len(text) <= max_lengh:
+        if len(text) <= max_length:
             return text
-        suffix = " [...]"
         short_text = ""
-        for word in WordIterator(text):
-            if len(short_text) + len(word) + len(suffix) < max_lengh:
-                short_text += word
-            else:
-                short_text += suffix
-                break
+        if intelligent:
+            for word in WordIterator(text):
+                if len(short_text) + len(word) + len(suffix) < max_length:
+                    short_text += word
+                else:
+                    short_text += suffix
+                    break
+        else:
+            short_text = text[:max_length - len(suffix)] + suffix
         return short_text
 
     @staticmethod
@@ -262,11 +305,15 @@ class Human():
         Returns:
         --------
             - (str) the text until max_lengh with ... or complete text
+
+        If the text has multiple lines, it will be split with \n[...]\n
+        otherwise only with [...]
         """
         text = str(text)
+        break_line = "\n" if len(text.splitlines()) > 1 else " "
         if len(text) <= max_length:
             return text
-        suffix = " [...] "
+        suffix = f"{break_line}[...]{break_line}"
         max_length = int(max_length - len(suffix))
         return f"{text[:int(max_length/2)]}{suffix}{text[-1*(int(max_length/2)):]}"
 
@@ -455,8 +502,6 @@ class MultilangProxy:
             return obj
 
 
-
-
 class MultiLang:
     def __init__(
         self,
@@ -524,6 +569,17 @@ class MultiLang:
 
     def __repr__(self) -> str:
         return f"<`{self.__class__.__name__}` {self._proxy}>"
+
+
+
+def get_date_format_by_timedelta(delta: timedelta) -> str:
+    if delta < timedelta(days=5):
+        date_format = "%a %H:%M"
+    elif delta < timedelta(days=15):
+        date_format = "%a %d.%m"
+    else:
+        date_format = "%d.%m"
+    return date_format
 
 
         

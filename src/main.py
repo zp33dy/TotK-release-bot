@@ -53,7 +53,7 @@ def main():
 
     @inu.listen(lightbulb.LightbulbStartedEvent)
     async def on_bot_ready(event : lightbulb.LightbulbStartedEvent):
-        pass
+        Reddit.init_reddit_credentials(event.app)
         # table = Table("bot")
         # record = await table.select_row(["key"], ["restart_count"])
         # activity = str(record["value"])

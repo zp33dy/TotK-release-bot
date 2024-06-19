@@ -15,7 +15,6 @@ from lightbulb.commands.base import OptionModifier as OM
 import hikari
 import apscheduler
 from apscheduler.triggers.interval import IntervalTrigger
-from utils import PollManager, Poll
 
 from core import Table, getLogger, Inu
 

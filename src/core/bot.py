@@ -11,13 +11,13 @@ from asyncpraw.config import Config
 from hikari.events.interaction_events import InteractionCreateEvent
 from hikari.interactions.component_interactions import ComponentInteraction
 from hikari import ModalInteraction
-
+from copy import copy
 
 import lightbulb
 from lightbulb import context, commands, when_mentioned_or
 import hikari
 from hikari.snowflakes import Snowflakeish
-from hikari.impl import ActionRowBuilder
+from hikari.impl import ModalActionRowBuilder, TextInputBuilder
 from hikari import TextInputStyle
 from dotenv import dotenv_values
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -49,6 +49,19 @@ class BotResponseError(Exception):
             self.kwargs["flags"] = hikari.MessageFlag.EPHEMERAL
         self.bot_message = bot_message
         super().__init__()
+
+    @property
+    def context_kwargs(self) -> Dict[str, Any]:
+        """
+        Creates context kwargs for InuContext
+        """
+        context_kwargs = {}
+        context_kwargs.update(self.kwargs)
+        if context_kwargs.get("flags") == hikari.MessageFlag.EPHEMERAL:
+            del context_kwargs["flags"]
+            context_kwargs["ephemeral"] = True
+        return context_kwargs
+
 
 
 class Inu(lightbulb.BotApp):
@@ -96,6 +109,7 @@ class Inu(lightbulb.BotApp):
             case_insensitive_prefix_commands=True,
             banner=None,
             logs=logs,
+            intents=hikari.Intents.ALL_GUILDS_UNPRIVILEGED,
             # default_enabled_guilds=[984380094699147294]
         )
         self.mrest = MaybeRest(self)
@@ -170,7 +184,7 @@ class Inu(lightbulb.BotApp):
 
 
     def load_slash(self):
-        for extension in os.listdir(os.path.join(os.getcwd(), "src/ext/slash")):
+        for extension in os.listdir(os.path.join(os.getcwd(), "inu/ext/slash")):
             if extension == "__init__.py" or not extension.endswith(".py"):
                 continue
             try:
@@ -218,10 +232,10 @@ class Inu(lightbulb.BotApp):
         self, 
         custom_id: Optional[str] = None,
         custom_ids: List[str] | None = None,
-        user_id: Optional[int] = None, 
+        user_ids: Optional[int] | Optional[List[int]] = None, 
         channel_id: Optional[int] = None,
         message_id: Optional[int] = None,
-        interaction_instance: Any = hikari.ComponentInteraction,
+        interaction_instance: Type[hikari.PartialInteraction] = hikari.ComponentInteraction,
         timeout: int | None = None,
     ) -> Tuple[str | None, InteractionCreateEvent | None, ComponentInteraction | None]:
         """
@@ -236,6 +250,8 @@ class Inu(lightbulb.BotApp):
             the component interaction to respond, of the awaited interaction
             None if timeout
         """
+        if isinstance(user_ids, int):
+            user_ids = [user_ids]
         try:
             event = await self.wait_for(
                 InteractionCreateEvent,
@@ -243,10 +259,11 @@ class Inu(lightbulb.BotApp):
                 predicate=lambda e:(
                     isinstance(e.interaction, interaction_instance)
                     and (True if not custom_id else custom_id == e.interaction.custom_id)
-                    and (True if not user_id else e.interaction.user.id == user_id)
+                    and (True if not user_ids else e.interaction.user.id in user_ids)
                     and (True if not channel_id else e.interaction.channel_id == channel_id)
                     and (True if not message_id else e.interaction.message.id == message_id)
                     and (True if not custom_ids else e.interaction.custom_id in custom_ids)
+                    
                 )
             )
             if not isinstance(event.interaction, ComponentInteraction):
@@ -347,6 +364,7 @@ class Data:
 
     def __init__(self) -> None:
         self.lavalink: lavasnek_rs.Lavalink = None  # type: ignore
+        self.preffered_music_search: Mapping[int, str] = {}
 
 class Configuration():
     """Wrapper for the config file"""
@@ -356,8 +374,11 @@ class Configuration():
     def __getattr__(self, name: str) -> str:
         result = self.config[name]
         if result is None:
-            raise AttributeError(f"`Configuration` (.env in root dir) has no attribute `{name}`")
+            raise AttributeError(f"`Configuration` file `config.yaml` has no attribute `{name}`")
         return result
+    
+    def __setattr__(self, name: str, value: Any) -> None:
+        self.config[name] = value
 
 
 class MaybeRest:
@@ -593,7 +614,8 @@ class Shortcuts:
         min_length_s: Optional[Union[int, List[Union[int, None]]]] = None,
         pre_value_s: Optional[Union[str, List[Union[str, None]]]] = None,
         is_required_s: Optional[Union[bool, List[Union[bool, None]]]] = None,
-        components: Optional[List[ActionRowBuilder]] = None,
+        components: Optional[List[ModalActionRowBuilder]] = None,
+        timeout: int = 60 * 15,
     ) -> Tuple[List[str], ModalInteraction, InteractionCreateEvent]:
         """
         Asks a question with a modal
@@ -655,10 +677,8 @@ class Shortcuts:
         if not components:
             components = []
             for i, question in enumerate(questions):
-                modal = (
-                    ActionRowBuilder()
-                    .add_text_input(f"modal_answer-{i}", question)
-                )
+                modal = TextInputBuilder(custom_id=f"modal_answer-{i}", label=question)
+                
 
                 # adds corresponding items to the modal
                 if max_length_s and (max_length := get_index_or_last(i, max_length_s)):
@@ -675,11 +695,11 @@ class Shortcuts:
                     modal.set_style(input_style)
 
                 # add modal part to the components
-                components.append(modal.add_to_container())
+                components.append(ModalActionRowBuilder(components=[modal]))
             
         custom_id = self.bot.id_creator.create_id()
         await interaction.create_modal_response(modal_title, custom_id, components=components)
-        answer_dict, modal_interaction, event = await self.wait_for_modal(custom_id=custom_id)
+        answer_dict, modal_interaction, event = await self.wait_for_modal(custom_id=custom_id, timeout=timeout)
         if isinstance(orig_questions, str):
             return answer_dict["modal_answer-0"], modal_interaction, event
         else:

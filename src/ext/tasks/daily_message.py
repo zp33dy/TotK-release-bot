@@ -12,7 +12,7 @@ from lightbulb.ext import tasks
 from lightbulb.commands.base import OptionModifier as OM
 import hikari
 from hikari import Embed
-from hikari.impl import ActionRowBuilder
+from hikari.impl import MessageActionRowBuilder
 import humanize
 import asyncpraw
 import apscheduler
@@ -155,7 +155,7 @@ async def on_join_interaction(event: hikari.InteractionCreateEvent):
             hikari.ResponseType.MESSAGE_CREATE, 
             f"From now on I will send messages into <#{channel_id}>"
         )
-        log.debug(guild_id)
+        log.debug(i.values)
         await table.upsert(["guild_id", "channel_id"], values=[guild_id, channel_id])
         guild = await bot.rest.fetch_guild(guild_id)
         log.info(f"Added guild [{guild.id}] '{guild.name}' with channel_id {channel_id} to the DB")
@@ -188,6 +188,9 @@ async def on_guild_join(event: hikari.GuildJoinEvent):
         # try to send the message, until the bot was allowed to send a message into a channel
         try:
             message = await bot.rest.create_message(**create_settings_message_kwargs(event.guild, channel.id)) 
+        except hikari.ForbiddenError:
+            log.warning(f"Can't send message to channel {channel.id} - lacking on permissions")
+            continue
         except Exception:
             log.error(traceback.format_exc())
         if message:
@@ -231,18 +234,18 @@ def create_settings_message_kwargs(guild: hikari.Guild, channel_id: int) -> Dict
         "Keep in mind, that I can just show the first 24 channels of your guild.\n"
     )
     component = (
-        ActionRowBuilder()
-        .add_select_menu(json.dumps(custom_id, indent=None))
+        MessageActionRowBuilder()
+        .add_channel_menu(json.dumps(custom_id, indent=None))
     )
-    channels = guild.get_channels()
-    for ch_id, channel in channels.items():
-        # not channel.is_nsfw 
-        if isinstance(channel, hikari.TextableChannel) and not isinstance(channel, hikari.GuildVoiceChannel):
-            pass
-        else:
-            continue
-        component = component.add_option(str(channel.name), str(channel.id)).add_to_menu()
-    component = component.add_to_container()
+    # channels = guild.get_channels()
+    # for ch_id, channel in channels.items():
+    #     # not channel.is_nsfw 
+    #     if isinstance(channel, hikari.TextableChannel) and not isinstance(channel, hikari.GuildVoiceChannel):
+    #         pass
+    #     else:
+    #         continue
+    #     component = component.add_option(str(channel.name), str(channel.id)).add_to_menu()
+    # component = component.add_to_container()
     kwargs["component"] = component
     return kwargs
         

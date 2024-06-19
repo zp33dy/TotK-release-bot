@@ -12,11 +12,10 @@ pyparsing
 pyyaml
 python-Levenshtein
 types-PyYAML
-pandas
-seaborn
 dataenforce
 pytimeparse
 colormap
+pandas
 humanize
 easydev
 asyncpraw
