@@ -26,7 +26,11 @@ bot: Inu
 
 plugin = lightbulb.Plugin("daily_message")
 table = Table("guilds")
-TOTK_RELEASE: datetime = datetime(2023, 5, 12)
+ZELDA_RELEASE: datetime = datetime(2024, 9, 26) #TOTK: datetime(2023, 5, 12)
+ZELDA_TITLE_FULL = "The Legend of Zelda: Echoes of Wisdom"
+ZELDA_TITLE_PART = "Echoes of Wisdom"
+ZELDA_REDDIT = "echoesofwisdom"
+
 SYNCING = False
 
 
@@ -82,19 +86,19 @@ async def _send_message(guild_id: int, channel_id: int, message_id: int | None):
             await bot.rest.delete_message(channel_id, message_id)
         except Exception:
             pass
-    delta = TOTK_RELEASE - datetime.now()
+    delta = ZELDA_RELEASE - datetime.now()
     embed = Embed()
-    embed.title = f"The Legend of Zelda: Tears of the Kingdom will be released in {humanize.naturaldelta(delta)} [{delta.days} days]"
+    embed.title = f"{ZELDA_TITLE_FULL} will be released in {humanize.naturaldelta(delta)} [{delta.days} days]"
     embed.description = (
-        f"For more information take a look at [Google - Tears of the Kingdom](https://www.google.com/search?q=the+legend+of+zelda+tears+of+the+kingdom&client=firefox-b-d&ei=ZQ0oY6m8JtT_7_UPrYmU0As&ved=0ahUKEwjpgrCznqD6AhXU_7sIHa0EBboQ4dUDCA0&uact=5&oq=the+legend+of+zelda+tears+of+the+kingdom&gs_lcp=Cgdnd3Mtd2l6EAMyBQguEMQCMgUIABDEAjIFCAAQxAI6CggAEEcQ1gQQsAM6DQgAEEcQ1gQQsAMQyQM6BggAEB4QFjoGCAAQHhAIOggIABAeEAgQDToFCAAQogQ6BwgAEB4QogRKBAhBGABKBAhGGABQsQhY2zhgpTtoAnABeACAAdMBiAHVGZIBBjIuMTguM5gBAKABAcgBCMABAQ&sclient=gws-wiz)\n"
+        f"For more information take a look at [Google - {ZELDA_TITLE_PART}](https://www.google.com/search?q={'+'.join(ZELDA_TITLE_FULL.split(' '))})\n"
     )
-    posts = await Reddit.get_posts("tearsofthekingdom", top=True, time_filter="week", minimum=4)
+    posts = await Reddit.get_posts(ZELDA_REDDIT, top=True, time_filter="week", minimum=4)
     embed.description += f"\nHere's what Reddit thinks about it:\n\n"
     for i, post in enumerate(posts):
-        embed.description += f"{i+1}. | [{post.title}](https://www.reddit.com/r/tearsofthekingdom/comments/{post.id})\n\n"
+        embed.description += f"{i+1}. | [{post.title}](https://www.reddit.com/r/{ZELDA_REDDIT}/comments/{post.id})\n\n"
     embed.color = Colors.from_name("royalblue")
-    embed.set_thumbnail("https://media.discordapp.net/attachments/818871393369718824/1021309749142224921/TotK-logo.png?width=1300&height=1158")
-    embed.set_image("https://media.discordapp.net/attachments/818871393369718824/1021309515825676308/unknown.png?width=1978&height=1112")
+    embed.set_thumbnail("https://media.discordapp.net/attachments/818871393369718824/1253064554242642031/14d316da5590a0821cbac3662d25cf4c.png?ex=66747ece&is=66732d4e&hm=5b78c832df09e523178b8bdbcb26aca3e802b657a6c532b24e30dec2faebb741&=&format=webp&quality=lossless&width=1320&height=856")
+    embed.set_image("https://media.discordapp.net/attachments/818871393369718824/1253064282384371883/Echoes_of_Wisdom.png?ex=66747e8d&is=66732d0d&hm=b8a85531e59aa8016d6aaf9f01e547a392359bdae3b9b2b8191b41ae4ad96491&=&format=webp&quality=lossless&width=1320&height=660")
     message = await bot.rest.create_message(channel_id, embed=embed)
     await table.update(set={"message_id": message.id}, where={"guild_id": guild_id})
 
@@ -221,7 +225,7 @@ def create_settings_message_kwargs(guild: hikari.Guild, channel_id: int) -> Dict
     kwargs: Dict[str, Any] = {}
     kwargs["channel"] = channel_id
     kwargs["content"] = (
-        "Select the channel where I should send the daily Tears of the Kingdom reminder message.\n"
+        f"Select the channel where I should send the daily {ZELDA_TITLE_PART} reminder message.\n"
         "If you need to create the channel or give me roles, that I see that specific channel "
         "then you can call this menu at anytime again with `/set` (this will update the channels I see).\n"
         "Keep in mind, that I can just show the first 24 channels of your guild.\n"
