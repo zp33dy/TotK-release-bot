@@ -1,5 +1,5 @@
-hikari-lightbulb
-hikari
+hikari==2.0.0.dev125
+hikari-lightbulb==2.3.5
 python-dotenv==0.19.0
 aiohttp
 asyncpg
