@@ -5,8 +5,6 @@ from hikari.impl import MessageActionRowBuilder
 import aiohttp
 
 from core import Inu
-from utils import pacman
-
 # Pictures
 MAGIC_ERROR_MONSTER = "https://media.discordapp.net/attachments/818871393369718824/1106177322069012542/error-monster-1.png?width=1308&height=946"
 
