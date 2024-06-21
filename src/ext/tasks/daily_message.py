@@ -2,24 +2,20 @@ from typing import *
 import asyncio
 import logging
 from datetime import datetime, timedelta
-import time
 import traceback
 import json
 from pprint import pformat
 
 import lightbulb
-from lightbulb.ext import tasks
 from lightbulb.commands.base import OptionModifier as OM
 import hikari
 from hikari import Embed
 from hikari.impl import MessageActionRowBuilder
 import humanize
-import asyncpraw
-import apscheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 from core import Table, getLogger, Inu
-from utils import Colors, Human, Reddit
+from utils import Colors, Reddit
 
 log = getLogger(__name__)
 bot: Inu
