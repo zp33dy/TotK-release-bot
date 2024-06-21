@@ -49,69 +49,75 @@ async def load_tasks(event: hikari.ShardReadyEvent):
     secs = int((wait_to - now).total_seconds())
     log.info(f"updateing messages in {secs}s")
     await asyncio.sleep(secs)
-    await update_messages()
+    await MessageUpdater.run_task()
     trigger = IntervalTrigger(days=1)
-    plugin.bot.scheduler.add_job(update_messages, trigger)
+    plugin.bot.scheduler.add_job(MessageUpdater.run_task(), trigger)
+    log.info(f"[INIT] Added job to update message; trigger: {trigger} ")
     logging.getLogger('apscheduler.executors.default').setLevel(logging.WARNING)
 
 
-
-async def update_messages():
-    """
-    Updates messages from all guilds
-    """
-    try:
-        await send_messages()
-    except Exception:
-        log.error(traceback.format_exc())
-
-
-async def _send_message(guild_id: int, channel_id: int, message_id: int | None):
-    """
-    Creates embed, get kwargs for setup message and creates the message
-    => updates the message_id in the db
-
-    Description:
-    ------------
-    - deletes the given message with id <message_id>
-    - creates a new message
-    - updates the database
-    """
-    if message_id:
+class MessageUpdater():
+    @classmethod
+    async def run_task(cls):
+        """
+        Runs the dispatcher which updates messages in all guilds
+        """
         try:
-            await bot.rest.delete_message(channel_id, message_id)
+            await cls.dispatcher()
         except Exception:
-            pass
-    delta = ZELDA_RELEASE - datetime.now()
-    embed = Embed()
-    embed.title = f"{ZELDA_TITLE_FULL} will be released in {humanize.naturaldelta(delta)} [{delta.days} days]"
-    embed.description = (
-        f"For more information take a look at [Google - {ZELDA_TITLE_PART}](https://www.google.com/search?q={'+'.join(ZELDA_TITLE_FULL.split(' '))})\n"
-    )
-    posts = await Reddit.get_posts(ZELDA_REDDIT, top=True, time_filter="week", minimum=4)
-    embed.description += f"\nHere's what Reddit thinks about it:\n\n"
-    for i, post in enumerate(posts):
-        embed.description += f"{i+1}. | [{post.title}](https://www.reddit.com/r/{ZELDA_REDDIT}/comments/{post.id})\n\n"
-    embed.color = Colors.from_name("royalblue")
-    embed.set_thumbnail("https://media.discordapp.net/attachments/818871393369718824/1253064554242642031/14d316da5590a0821cbac3662d25cf4c.png?ex=66747ece&is=66732d4e&hm=5b78c832df09e523178b8bdbcb26aca3e802b657a6c532b24e30dec2faebb741&=&format=webp&quality=lossless&width=1320&height=856")
-    embed.set_image("https://media.discordapp.net/attachments/818871393369718824/1253064282384371883/Echoes_of_Wisdom.png?ex=66747e8d&is=66732d0d&hm=b8a85531e59aa8016d6aaf9f01e547a392359bdae3b9b2b8191b41ae4ad96491&=&format=webp&quality=lossless&width=1320&height=660")
-    message = await bot.rest.create_message(channel_id, embed=embed)
-    await table.update(set={"message_id": message.id}, where={"guild_id": guild_id})
+            log.error(traceback.format_exc())
 
+    @staticmethod
+    def make_embed() -> Embed:
+        embed = Embed()
+        embed.title = f"{ZELDA_TITLE_FULL} will be released in {humanize.naturaldelta(ZELDA_RELEASE - datetime.now())} [{(ZELDA_RELEASE - datetime.now()).days} days]"
+        embed.description = (
+            f"For more information take a look at [Google - {ZELDA_TITLE_PART}](https://www.google.com/search?q={'+'.join(ZELDA_TITLE_FULL.split(' '))})\n"
+        )
+        posts = Reddit.get_posts(ZELDA_REDDIT, top=True, time_filter="week", minimum=4)
+        embed.description += f"\nHere's what Reddit thinks about it:\n\n"
+        for i, post in enumerate(posts):
+            embed.description += f"{i+1}. | [{post.title}](https://www.reddit.com/r/{ZELDA_REDDIT}/comments/{post.id})\n\n"
+        embed.color = Colors.from_name("royalblue")
+        embed.set_thumbnail("https://media.discordapp.net/attachments/818871393369718824/1253064554242642031/14d316da5590a0821cbac3662d25cf4c.png?ex=66747ece&is=66732d4e&hm=5b78c832df09e523178b8bdbcb26aca3e802b657a6c532b24e30dec2faebb741&=&format=webp&quality=lossless&width=1320&height=856")
+        embed.set_image("https://media.discordapp.net/attachments/818871393369718824/1253064282384371883/Echoes_of_Wisdom.png?ex=66747e8d&is=66732d0d&hm=b8a85531e59aa8016d6aaf9f01e547a392359bdae3b9b2b8191b41ae4ad96491&=&format=webp&quality=lossless&width=1320&height=660")
+        return embed
+    
+    @classmethod
+    async def update_message(cls, guild_id: int, channel_id: int, message_id: int | None):
+        """
+        Creates embed, get kwargs for setup message and creates the message
+        => updates the message_id in the db
 
+        Description:
+        ------------
+        - deletes the given message with id <message_id>
+        - creates a new message
+        - updates the database
+        """
+        log.debug(f"Send message to {bot.cache.get_guild(guild_id).name} [{guild_id}]")
+        if message_id is not None:
+            try:
+                await bot.rest.delete_message(channel_id, message_id)
+            except Exception:
+                pass
+        embed = cls.make_embed()
+        message = await bot.rest.create_message(channel_id, embed=embed)
+        await table.update(set={"message_id": message.id}, where={"guild_id": guild_id})
 
-async def send_messages():
-    """
-    fetches DB entries, and sends for every single one the message
-    """
-    guild_records = await table.fetch(f"SELECT * FROM {table.name}")
-    for r in guild_records:
-        log.debug(f"send message")
-        asyncio.create_task(_send_message(
-            guild_id=r["guild_id"],
-            channel_id=r["channel_id"],
-            message_id=r["message_id"]
-        ))
+    @classmethod
+    async def dispatcher(cls):
+        """
+        fetches DB entries, and sends for every single one the message
+        """
+        log.debug("Dispatching messages")
+        guild_records = await table.fetch(f"SELECT * FROM {table.name}")
+        for r in guild_records:
+            asyncio.create_task(cls.update_message(
+                guild_id=r["guild_id"],
+                channel_id=r["channel_id"],
+                message_id=r["message_id"]
+            ))
 
 
 
@@ -127,7 +133,7 @@ async def on_guild_leave(event: hikari.GuildLeaveEvent):
 
 
 @plugin.listener(hikari.InteractionCreateEvent)
-async def on_join_interaction(event: hikari.InteractionCreateEvent):
+async def on_channel_select(event: hikari.InteractionCreateEvent):
     """
     manages the interactions of the startup message
     """
@@ -154,8 +160,8 @@ async def on_join_interaction(event: hikari.InteractionCreateEvent):
         log.debug(i.values)
         await table.upsert(["guild_id", "channel_id"], values=[guild_id, channel_id])
         guild = await bot.rest.fetch_guild(guild_id)
-        log.info(f"Added guild [{guild.id}] '{guild.name}' with channel_id {channel_id} to the DB")
-        await _send_message(guild_id, channel_id, None)
+        log.info(f"Added guild '{guild.name}' [{guild.id}] with channel_id {channel_id} to the DB")
+        await MessageUpdater.update_message(guild_id, channel_id, None)
     except hikari.ForbiddenError:
         await i.create_initial_response(
             hikari.ResponseType.MESSAGE_CREATE, 
@@ -183,7 +189,7 @@ async def on_guild_join(event: hikari.GuildJoinEvent):
     for channel in not_nsfw_channels:
         # try to send the message, until the bot was allowed to send a message into a channel
         try:
-            message = await bot.rest.create_message(**create_settings_message_kwargs(event.guild, channel.id)) 
+            message = await bot.rest.create_message(**make_settings_message_kwargs(event.guild, channel.id)) 
         except hikari.ForbiddenError:
             log.warning(f"Can't send message to channel {channel.id} - lacking on permissions")
             continue
@@ -204,7 +210,7 @@ async def set_channel(ctx: lightbulb.context.Context):
         if not guild:
             log.error(f"guild is not in cache. Change method to rest")
             return
-        kwargs = create_settings_message_kwargs(guild, ctx.channel_id)
+        kwargs = make_settings_message_kwargs(guild, ctx.channel_id)
         del kwargs["channel"]
         await ctx.respond(**kwargs)
     except Exception:
@@ -212,7 +218,7 @@ async def set_channel(ctx: lightbulb.context.Context):
 
 
 
-def create_settings_message_kwargs(guild: hikari.Guild, channel_id: int) -> Dict[str, Any]:
+def make_settings_message_kwargs(guild: hikari.Guild, channel_id: int) -> Dict[str, Any]:
     """
     creates the kwargs for the startup message
     """
@@ -233,19 +239,9 @@ def create_settings_message_kwargs(guild: hikari.Guild, channel_id: int) -> Dict
         MessageActionRowBuilder()
         .add_channel_menu(json.dumps(custom_id, indent=None))
     )
-    # channels = guild.get_channels()
-    # for ch_id, channel in channels.items():
-    #     # not channel.is_nsfw 
-    #     if isinstance(channel, hikari.TextableChannel) and not isinstance(channel, hikari.GuildVoiceChannel):
-    #         pass
-    #     else:
-    #         continue
-    #     component = component.add_option(str(channel.name), str(channel.id)).add_to_menu()
-    # component = component.add_to_container()
     kwargs["component"] = component
     return kwargs
         
-
 
 def load(inu: Inu):
     global bot
