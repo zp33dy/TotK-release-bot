@@ -17,7 +17,6 @@ from lightbulb.commands import OptionModifier as OM
 
 from utils import crumble
 from utils import Paginator
-from utils.tree import tree as tree_
 from core import Inu
 from utils import Human
 from utils.string_crumbler import NumberWordIterator as NWI
@@ -138,26 +137,6 @@ async def _execute(ctx: Context, code: str):
         'getsource': getsource,
         's_dir':
         lambda obj, search: [attr for attr in dir(obj) if search in attr],
-        'tree':
-        lambda obj=None, depth=0, search='', docs=False, private=False: print(
-            tree_(
-                obj=obj,
-                search_for=search, 
-                with_docs=docs, 
-                with_private=private, 
-                depth=depth
-            )
-        ),
-        's_tree':
-        lambda obj=None, search='', depth=0, docs=False, private=False: print(
-            tree_(
-                obj,
-                search_for=search, 
-                with_docs=docs, 
-                with_private=private, 
-                depth=depth
-            )
-        )
     }
     env.update(globals())
 
