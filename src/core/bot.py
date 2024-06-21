@@ -29,7 +29,6 @@ from matplotlib.colors import cnames
 
 from ._logging import LoggingHandler, getLogger, getLevel 
 from . import ConfigProxy, ConfigType
-from . import Bash
 
 T_STR_LIST = TypeVar("T_STR_LIST", list[str], str)
 T_INTERACTION_TYPE = TypeVar("T_INTERACTION_TYPE", bound=Union[ComponentInteraction, ModalInteraction])
