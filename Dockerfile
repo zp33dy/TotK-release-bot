@@ -1,17 +1,30 @@
-FROM ubuntu:20.04
+FROM ubuntu:noble
 FROM python:3.10.4
-RUN apt update
-RUN apt upgrade -y
+# Install pip
+RUN python -m ensurepip
+
+# Upgrade pip to the latest version
+RUN python -m pip install --upgrade pip
+
 RUN useradd -ms /bin/bash inu
-RUN usermod -aG sudo inu
-WORKDIR /home/inu
+
+# Create and set permissions for /home/inu/app directory
 USER inu
+WORKDIR /home/inu
+
+# Copy requirements and install dependencies
 ADD requirements.txt requirements.txt
 RUN pip install asyncpg matplotlib
 RUN pip install -r requirements.txt
-COPY . .
+
+# Copy application files
+COPY src src
+COPY config.yaml .
+
 USER root
-RUN chown -R inu: /home/inu
+# Create log directory and set permissions
+RUN mkdir -p inu \
+    && chown -R inu:inu inu
 USER inu
-WORKDIR /home/inu
-CMD ["python3", "src/main.py"]
+
+CMD ["python3", "-O", "src/main.py"]
