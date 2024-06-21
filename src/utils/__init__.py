@@ -1,12 +1,7 @@
 from .shortcuts import *
 from .colors import *
-from .string_crumbler import crumble, StringCutter, WordIteratortex
+from .string_crumbler import crumble, StringCutter, WordIterator
+from .language import *
 
 from .rest import *
 from .db import *
-
-
-
-import logging
-from core._logging import LoggingHandler
-logging.setLoggerClass(LoggingHandler)
