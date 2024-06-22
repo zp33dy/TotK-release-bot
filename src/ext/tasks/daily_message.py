@@ -1,3 +1,4 @@
+from functools import cache
 from typing import *
 import asyncio
 import logging
@@ -51,7 +52,7 @@ async def load_tasks(event: hikari.ShardReadyEvent):
     await asyncio.sleep(secs)
     await MessageUpdater.run_task()
     trigger = IntervalTrigger(days=1)
-    plugin.bot.scheduler.add_job(MessageUpdater.run_task(), trigger)
+    bot.scheduler.add_job(MessageUpdater.run_task(), trigger)
     log.info(f"[INIT] Added job to update message; trigger: {trigger} ")
     logging.getLogger('apscheduler.executors.default').setLevel(logging.WARNING)
 
@@ -68,13 +69,13 @@ class MessageUpdater():
             log.error(traceback.format_exc())
 
     @staticmethod
-    def make_embed() -> Embed:
+    async def make_embed() -> Embed:
         embed = Embed()
         embed.title = f"{ZELDA_TITLE_FULL} will be released in {humanize.naturaldelta(ZELDA_RELEASE - datetime.now())} [{(ZELDA_RELEASE - datetime.now()).days} days]"
         embed.description = (
             f"For more information take a look at [Google - {ZELDA_TITLE_PART}](https://www.google.com/search?q={'+'.join(ZELDA_TITLE_FULL.split(' '))})\n"
         )
-        posts = Reddit.get_posts(ZELDA_REDDIT, top=True, time_filter="week", minimum=4)
+        posts = await Reddit.get_posts(ZELDA_REDDIT, top=True, time_filter="week", minimum=4)
         embed.description += f"\nHere's what Reddit thinks about it:\n\n"
         for i, post in enumerate(posts):
             embed.description += f"{i+1}. | [{post.title}](https://www.reddit.com/r/{ZELDA_REDDIT}/comments/{post.id})\n\n"
@@ -83,6 +84,13 @@ class MessageUpdater():
         embed.set_image("https://media.discordapp.net/attachments/818871393369718824/1253064282384371883/Echoes_of_Wisdom.png?ex=66747e8d&is=66732d0d&hm=b8a85531e59aa8016d6aaf9f01e547a392359bdae3b9b2b8191b41ae4ad96491&=&format=webp&quality=lossless&width=1320&height=660")
         return embed
     
+    @classmethod
+    async def delete_guild_from_db(cls, guild_id: int):
+        """
+        Deletes a guild from the DB
+        """
+        await table.execute(f"DELETE FROM {table.name} WHERE guild_id = $1", guild_id)
+        
     @classmethod
     async def update_message(cls, guild_id: int, channel_id: int, message_id: int | None):
         """
@@ -95,13 +103,22 @@ class MessageUpdater():
         - creates a new message
         - updates the database
         """
-        log.debug(f"Send message to {bot.cache.get_guild(guild_id).name} [{guild_id}]")
+        guild = await bot.mrest.fetch_T(
+            cache_method=bot.cache.get_guild,
+            rest_coro=bot.rest.fetch_guild,
+            t_ids=[guild_id]
+        )
+        if guild is None:
+            log.warning(f"Guild with id {guild_id} not found, deleting from DB")
+            return await cls.delete_guild_from_db(guild_id)
+        
+        log.debug(f"Send message to {guild.name} [{guild.id}]")
         if message_id is not None:
             try:
                 await bot.rest.delete_message(channel_id, message_id)
             except Exception:
                 pass
-        embed = cls.make_embed()
+        embed = await cls.make_embed()
         message = await bot.rest.create_message(channel_id, embed=embed)
         await table.update(set={"message_id": message.id}, where={"guild_id": guild_id})
 
@@ -112,6 +129,8 @@ class MessageUpdater():
         """
         log.debug("Dispatching messages")
         guild_records = await table.fetch(f"SELECT * FROM {table.name}")
+        if guild_records is None:
+            return log.warning("No guilds found in the DB")
         for r in guild_records:
             asyncio.create_task(cls.update_message(
                 guild_id=r["guild_id"],
