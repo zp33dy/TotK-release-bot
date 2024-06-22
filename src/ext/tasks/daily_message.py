@@ -48,7 +48,7 @@ async def load_tasks(event: hikari.ShardReadyEvent):
     if wait_to < now:
         wait_to += timedelta(days=1)
     secs = int((wait_to - now).total_seconds())
-    log.info(f"updateing messages in {secs}s")
+    log.info(f"updateing messages in {humanize.naturaldelta(secs)} [{secs}s]")
     await asyncio.sleep(secs)
     await MessageUpdater.run_task()
     trigger = IntervalTrigger(days=1)
