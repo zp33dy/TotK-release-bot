@@ -5,7 +5,7 @@ aiohttp
 asyncpg
 asyncache==0.1.1
 cachetools==4.2.2
-APScheduler==3.8.1
+APScheduler==3.10.4
 asyncpraw==7.5.0
 colorama==0.4.4
 pyparsing
