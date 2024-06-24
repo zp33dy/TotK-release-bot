@@ -46,7 +46,7 @@ async def load_tasks(event: hikari.ShardReadyEvent):
 
         now = datetime.now()
         wait_to = datetime(now.year, now.month, now.day, 0, 5)
-        if wait_to < now:
+        if wait_to < now: 
             wait_to += timedelta(days=1)
         secs = int((wait_to - now).total_seconds())
         log.info(f"updateing messages in {humanize.naturaldelta(secs)} [{secs}s]")
@@ -59,9 +59,6 @@ async def load_tasks(event: hikari.ShardReadyEvent):
     except Exception:
         log.error(traceback.format_exc())
 
-# @plugin.set_error_handler
-# async def on_error(ctx: lightbulb.Context, error: Exception):
-#     log.error(f"Error: {traceback.format_exception(value=error)}")
 
 class MessageUpdater():
     @classmethod
