@@ -36,26 +36,32 @@ async def load_tasks(event: hikari.ShardReadyEvent):
     """
     Loads task to update message once per day
     """
-    global SYNCING
-    if SYNCING:
-        return
-    else:
-        SYNCING = True
-    await asyncio.sleep(3)
+    try:
+        global SYNCING
+        if SYNCING:
+            return
+        else:
+            SYNCING = True
+        await asyncio.sleep(3)
 
-    now = datetime.now()
-    wait_to = datetime(now.year, now.month, now.day, 0, 5)
-    if wait_to < now:
-        wait_to += timedelta(days=1)
-    secs = int((wait_to - now).total_seconds())
-    log.info(f"updateing messages in {humanize.naturaldelta(secs)} [{secs}s]")
-    await asyncio.sleep(secs)
-    await MessageUpdater.run_task()
-    trigger = IntervalTrigger(days=1)
-    bot.scheduler.add_job(MessageUpdater.run_task(), trigger)
-    log.info(f"[INIT] Added job to update message; trigger: {trigger} ")
-    logging.getLogger('apscheduler.executors.default').setLevel(logging.WARNING)
+        now = datetime.now()
+        wait_to = datetime(now.year, now.month, now.day, 0, 5)
+        if wait_to < now:
+            wait_to += timedelta(days=1)
+        secs = int((wait_to - now).total_seconds())
+        log.info(f"updateing messages in {humanize.naturaldelta(secs)} [{secs}s]")
+        await asyncio.sleep(secs)
+        await MessageUpdater.run_task()
+        trigger = IntervalTrigger(days=1)
+        bot.scheduler.add_job(MessageUpdater.run_task, trigger)
+        log.info(f"[INIT] Added job to update message; trigger: {trigger} ")
+        logging.getLogger('apscheduler.executors.default').setLevel(logging.WARNING)
+    except Exception:
+        log.error(traceback.format_exc())
 
+# @plugin.set_error_handler
+# async def on_error(ctx: lightbulb.Context, error: Exception):
+#     log.error(f"Error: {traceback.format_exception(value=error)}")
 
 class MessageUpdater():
     @classmethod
@@ -63,6 +69,7 @@ class MessageUpdater():
         """
         Runs the dispatcher which updates messages in all guilds
         """
+        log.debug("Running task")
         try:
             await cls.dispatcher()
         except Exception:
